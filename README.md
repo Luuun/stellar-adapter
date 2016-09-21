@@ -19,7 +19,7 @@ In order to use the Stellar adapter you must set the following ENV variables on 
 
 `STELLAR_SEND_ADDRESS` : Address for adapter sends.
 
-'STELLAR_RECEIVE_ADDRESS' : Address for adapter receives.
+`STELLAR_RECEIVE_ADDRESS` : Address for adapter receives.
 
 `STELLAR_NETWORK` : Specifies whether to use the TESTNET or PUBLIC network.
 
