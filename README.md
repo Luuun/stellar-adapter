@@ -16,13 +16,21 @@ To make use of this adapter:
 In order to use the Stellar adapter you must set the following ENV variables on the server.
 
 `STELLAR_SEND_PRIVATE_KEY` : Private key for adapter sends.
+
 `STELLAR_SEND_ADDRESS` : Address for adapter sends.
+
 'STELLAR_RECEIVE_ADDRESS' : Address for adapter receives.
+
 `STELLAR_NETWORK` : Specifies whether to use the TESTNET or PUBLIC network.
+
 `REHIVE_API_URL` : Platform URL, used to update transactions on Rehive (eg. 'http://localhost:8080').
+
 `REHIVE_API_TOKEN` : Token used for Rehive Admin API endpoint when updating transactions.
+
 `STELLAR_WITHDRAW_SECRET_KEY` : Withdraw Webhook security key (Defaults to 'secret').
+
 `STELLAR_DEPOSIT_SECRET_KEY` : Deposit Webhook security key (Defaults to 'secret').
+
 `STELLAR_SEND_SECRET_KEY` : Send Webhook security key (Defaults to 'secret').
 
 ---
