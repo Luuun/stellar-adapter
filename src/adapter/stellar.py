@@ -1,17 +1,19 @@
 import urllib.parse
+from logging import getLogger
 
 import requests
 from stellar_base.builder import Builder, Decimal
 from stellar_base.exceptions import APIException
 
-from . import settings
+from stellar_adapter import settings
 import toml
 
+logger = getLogger('django')
 
 # Create send transaction in adapter service
 from stellar_base.address import Address
 
-from .exceptions import NotImplementedAPIError
+from stellar_adapter.exceptions import NotImplementedAPIError
 
 
 def get_federation_details(address):
@@ -26,7 +28,7 @@ def get_federation_details(address):
     return federation
 
 
-def create_transaction(counterparty: str, amount: Decimal):
+def create_transaction(counterparty: str, amount: Decimal, currency='XLM', issuer=None):
     builder = Builder(secret=getattr(settings, 'STELLAR_SEND_PRIVATE_KEY'),
                       network=getattr(settings, 'STELLAR_NETWORK'))
     if is_valid_address(counterparty):
@@ -45,13 +47,21 @@ def create_transaction(counterparty: str, amount: Decimal):
         address = federation['account_id']
 
     # Create account or create payment:
-    try:
+    if currency == 'XLM':
+        try:
+            address_obj = Address(address, network=getattr(settings, 'STELLAR_NETWORK'))
+            address_obj.get()
+            builder.append_payment_op(address, amount, 'XLM')
+        except APIException as exc:
+            if exc.status_code == 404:
+                builder.append_create_account_op(address, amount)
+    else:
+        # Get issuer address details:
+        issuer_address = get_issuer_address(issuer, currency)
+
         address_obj = Address(address, network=getattr(settings, 'STELLAR_NETWORK'))
         address_obj.get()
-        builder.append_payment_op(address, amount, 'XLM')
-    except APIException as exc:
-        if exc.status_code == 404:
-            builder.append_create_account_op(address, amount)
+        builder.append_payment_op(address, amount, currency, issuer_address)
 
     try:
         builder.sign()
@@ -104,26 +114,35 @@ def is_valid_address(address: str) -> bool:
         return False
 
 
-def get_anchor_address(domain, code):
+def address_from_domain(domain, code):
+    logger.info('Fetching address from domain.')
     stellar_toml = requests.get('https://' + domain + '/.well-known/stellar.toml')
     currencies = toml.loads(stellar_toml.text)['CURRENCIES']
 
     for currency in currencies:
         if currency['code'] == code:
+            logger.info('Address: %s' % (currency['issuer'],))
             return currency['issuer']
 
 
-def trust_issuer(asset_code, issuer):
-    builder = Builder(secret=getattr(settings, 'STELLAR_SEND_PRIVATE_KEY'),
-                      network=getattr(settings, 'STELLAR_NETWORK'))
-
+def get_issuer_address(issuer, asset_code):
     if is_valid_address(issuer):
         address = issuer
     else:
         if '*' in issuer:
             address = get_federation_details(issuer)['account_id']
         else:  # assume it is an anchor domain
-            address = get_anchor_address(issuer, asset_code)
+            address = address_from_domain(issuer, asset_code)
+
+    return address
+
+
+def trust_issuer(asset_code, issuer):
+    logger.info('Trusting issuer: %s %s' % (issuer, asset_code))
+    builder = Builder(secret=getattr(settings, 'STELLAR_SEND_PRIVATE_KEY'),
+                      network=getattr(settings, 'STELLAR_NETWORK'))
+
+    address = get_issuer_address(issuer, asset_code)
 
     builder.append_trust_op(address, asset_code)
 

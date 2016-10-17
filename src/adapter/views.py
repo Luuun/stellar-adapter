@@ -15,26 +15,28 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
-from . import settings
-from .exceptions import PlatformRequestFailedError, NotImplementedAPIError
-from .models import UserAccount, Asset
-from .serializers import PurchaseSerializer, WithdrawSerializer, DepositSerializer, \
+from stellar_adapter import settings
+from stellar_adapter.exceptions import PlatformRequestFailedError, NotImplementedAPIError
+from stellar_adapter.models import UserAccount, Asset
+from stellar_adapter.serializers import PurchaseSerializer, WithdrawSerializer, DepositSerializer, \
     SendSerializer, UserAccountSerializer, AddAssetSerializer
-from .permissions import AdapterPurchasePermission, AdapterWithdrawPermission, \
+from stellar_adapter.permissions import AdapterPurchasePermission, AdapterWithdrawPermission, \
     AdapterDepositPermission, AdapterSendPermission, AdapterPermission
 
 from logging import getLogger
 
-from .stellar import create_transaction, get_balance, create_qr_code_url, from_cents, trust_issuer
-from .throttling import NoThrottling
+from stellar_adapter.stellar import create_transaction, get_balance, create_qr_code_url, from_cents, trust_issuer, \
+    get_issuer_address
+from stellar_adapter.throttling import NoThrottling
 
 logger = getLogger('django')
 
+STELLAR_WALLET_DOMAIN = 'luuun.com'
 
 @api_view(['GET'])
 @authentication_classes([])
 @permission_classes([])
-def stellar_adapter_root(request, format=None):
+def adapter_root(request, format=None):
     """
     ### Notes:
 
@@ -44,36 +46,46 @@ def stellar_adapter_root(request, format=None):
 
     2) Set a secret key for each transaction webhook
 
-    3) Ensure the the required ENV variables have been added to the server.
+    3) Ensure the the required ENV varaibles have been added to the server.
 
     **Required ENV variables:**
 
     In order to use the Stellar adapter you must set the following ENV variables on the server.
 
     `STELLAR_SEND_PRIVATE_KEY` : Private key for adapter sends.
+
     `STELLAR_SEND_ADDRESS` : Address for adapter sends.
+
     'STELLAR_RECEIVE_ADDRESS' : Address for adapter receives.
-    `STELLAR_NETWORK` : Specifies whether to use the TESTNET or PUBLIC network.
-    `REHIVE_API_URL` : Platform URL, used to update transactions on Rehive (eg. 'http://localhost:8080').
-    `REHIVE_API_TOKEN` : Token used for Rehive Admin API endpoint when updating transactions.
+
+    `STELLAR_NETWORK` : Adapter network.
+
+    `STELLAR_PLATFORM_URL` : Platform URL, used to update transactions on Rehive (eg. 'http://localhost:8080').
+
+    `STELLAR_PLATFORM_SECURITY_TOKEN` : Token used for Rehive Admin API endpoint when updating transactions.
+
+    `STELLAR_PURCHASE_SECRET_KEY` : Purchase Webhook security key (Defaults to 'secret').
+
     `STELLAR_WITHDRAW_SECRET_KEY` : Withdraw Webhook security key (Defaults to 'secret').
+
     `STELLAR_DEPOSIT_SECRET_KEY` : Deposit Webhook security key (Defaults to 'secret').
+
     `STELLAR_SEND_SECRET_KEY` : Send Webhook security key (Defaults to 'secret').
 
     ---
 
     """
 
-    return Response({'Purchase': reverse('stellar-adapter:purchase',
+    return Response({'Purchase': reverse('adapter-api:purchase',
                                       request=request,
                                       format=format),
-                     'Withdraw': reverse('stellar-adapter:withdraw',
+                     'Withdraw': reverse('adapter-api:withdraw',
                                        request=request,
                                        format=format),
-                     'Deposit': reverse('stellar-adapter:deposit',
+                     'Deposit': reverse('adapter-api:deposit',
                                       request=request,
                                       format=format),
-                     'Send': reverse('stellar-adapter:send',
+                     'Send': reverse('adapter-api:send',
                                           request=request,
                                           format=format),
                      })
@@ -128,11 +140,24 @@ class SendView(GenericAPIView):
         tx_code = request.data.get('tx_code')
         counterparty = request.data.get('counterparty')
         amount = request.data.get('amount')
+        currency = request.data.get('currency')
+        issuer = request.data.get('issuer')
+
+        print(request.data)
+        print(currency)
 
         try:
             logger.info('To: ' + counterparty)
             logger.info('Amount: ' + str(amount))
-            create_transaction(counterparty, from_cents(amount, 7))
+            logger.info('Currency: ' + currency)
+
+            if currency == 'XLM':
+                create_transaction(counterparty, from_cents(amount, 7))
+
+            else:
+                asset = Asset.objects.get(code=currency, issuer=issuer)
+                create_transaction(counterparty, from_cents(amount, 7), currency, asset.issuer)
+
             update_platform_transaction(tx_code, 'Confirmed')
         except Exception as exc:
             update_platform_transaction.delay(tx_code, 'Failed')
@@ -182,6 +207,7 @@ class UserAccountView(GenericAPIView):
     serializer_class = UserAccountSerializer
 
     def post(self, request, *args, **kwargs):
+        logger.info(request.data)
         user_id = request.data.get('user_id')
         # Check if metadata is specified
         if request.data.get('metadata'):
@@ -191,7 +217,7 @@ class UserAccountView(GenericAPIView):
                 metadata = request.data.get('metadata')
         else:
             metadata = json.loads('{}')
-        account_id = metadata['username'] + '*rehive.com'
+        account_id = metadata['username'] + '*' + STELLAR_WALLET_DOMAIN
         account, created = UserAccount.objects.get_or_create(user_id=user_id, account_id=account_id)
         return Response(OrderedDict([('account_id', account_id),
                                      ('user_id', user_id)]))
@@ -273,8 +299,14 @@ class AddAssetView(GenericAPIView):
         else:
             metadata = json.loads('{}')
         try:
-            trust_issuer(asset_code, issuer)
-            Asset.objects.get_or_create(code=asset_code, issuer=issuer, metadata=metadata)
+            issuer_address = get_issuer_address(issuer, asset_code)
+            if not Asset.objects.filter(code=asset_code, account_id=issuer_address).exists():
+                trust_issuer(asset_code, issuer)
+                Asset.objects.create(code=asset_code, issuer=issuer, account_id=issuer_address, metadata=metadata)
+            else:
+                logger.info('Issuer already trusted: %s %s' % (issuer, asset_code))
+                # name used first time issuer is created.
+                issuer = Asset.objects.get(code=asset_code, account_id=issuer_address).issuer
         except Exception as exc:
             logger.exception(exc)
             try:
@@ -283,7 +315,7 @@ class AddAssetView(GenericAPIView):
                 pass
             raise APIException('Error adding asset.')
 
-        return Response({'status': 'success'})
+        return Response({'status': 'success', 'issuer': issuer})
 
     def get(self, request, *args, **kwargs):
         raise exceptions.MethodNotAllowed('GET')

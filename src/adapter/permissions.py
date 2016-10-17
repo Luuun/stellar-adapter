@@ -2,7 +2,7 @@ import os
 from rest_framework import permissions
 from logging import getLogger
 
-from . import settings
+from stellar_adapter import settings
 
 logger = getLogger('django')
 

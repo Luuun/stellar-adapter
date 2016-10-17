@@ -1,4 +1,5 @@
 from rest_framework import status
+from rest_framework import exceptions, status
 from django.utils.encoding import force_text
 from rest_framework.exceptions import APIException
 

@@ -7,7 +7,7 @@ wheel-factory:
 
 
 nginx-proxy:
-  image: jwilder/nginx-proxy
+  image: jwilder/nginx-proxy:0.1.0
   ports:
     - 80:80
     - 443:443

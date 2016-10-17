@@ -13,7 +13,7 @@ postgres:
   volumes_from:
     - db_data
   ports:
-    - '7654:5432'
+    - 7654:5432
   env_file:
     - ${PWD}/${ENV_FILE}
 

@@ -2,7 +2,7 @@ from celery import shared_task
 
 import logging
 
-from .models import AdminAccount
+from stellar_adapter.models import AdminAccount
 
 logger = logging.getLogger('django')
 

@@ -41,9 +41,11 @@ def create_server(provider='digitalocean'):
     elif provider=='gcloud':
         local('docker-machine create '
               '--driver google '
-              '--google-project traveldisrupt '
-              '--google-zone europe-west1-a '
+              '--google-project zapgo-1273 '
+              '--google-zone us-west1-a '
+              '--google-disk-type pd-ssd '
               '--google-machine-type n1-standard-1 '
+              '--google-disk-size 100 '
               '--google-username {user} '
               '{host_name}'.format(host_name=env.host_name, user=env.user_name))
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import UserAccount, AdminAccount
+from stellar_adapter.models import UserAccount, AdminAccount, Asset
 
 
 class CustomModelAdmin(admin.ModelAdmin):
@@ -16,5 +16,10 @@ class UserAccountAdmin(CustomModelAdmin):
 class AdminAccountAdmin(CustomModelAdmin):
     pass
 
+
+class AssetAdmin(CustomModelAdmin):
+    pass
+
 admin.site.register(UserAccount, UserAccountAdmin)
 admin.site.register(AdminAccount, AdminAccountAdmin)
+admin.site.register(Asset, AssetAdmin)

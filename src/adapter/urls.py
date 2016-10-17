@@ -1,7 +1,7 @@
 from django.conf.urls import patterns, url, include
 from rest_framework.urlpatterns import format_suffix_patterns
 
-from . import views
+from stellar_adapter import views
 
 urlpatterns = (
     url(r'^purchase/$', views.PurchaseView.as_view(), name='purchase'),
@@ -13,7 +13,7 @@ urlpatterns = (
     url(r'^assets/add/', views.AddAssetView.as_view(), name='operating_account'),
     url(r'^user/account/$', views.UserAccountView.as_view(), name='user_account'),
     url(r'^federation/$', views.StellarFederationView.as_view(), name='stellar_federation'),
-    url(r'^$', views.stellar_adapter_root)
+    url(r'^$', views.adapter_root)
 
 )
 
