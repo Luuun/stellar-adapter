@@ -13,7 +13,7 @@ logger = getLogger('django')
 # Create send transaction in adapter service
 from stellar_base.address import Address
 
-from stellar_adapter.exceptions import NotImplementedAPIError
+from .exceptions import NotImplementedAPIError
 
 
 def get_federation_details(address):
@@ -79,14 +79,6 @@ def get_balance():
     for balance in address.balances:
         if balance['asset_type'] == 'native':
             return to_cents(Decimal(balance['balance']), 7)
-
-
-def to_cents(amount: Decimal, divisibility: int) -> int:
-    return int(amount * Decimal('10')**Decimal(divisibility))
-
-
-def from_cents(amount: int, divisibility: int) -> Decimal:
-    return Decimal(amount) / Decimal('10')**Decimal(divisibility)
 
 
 def create_qr_code_url(value, size=300):

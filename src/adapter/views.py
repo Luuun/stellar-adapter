@@ -15,19 +15,19 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
-from stellar_adapter import settings
-from stellar_adapter.exceptions import PlatformRequestFailedError, NotImplementedAPIError
-from stellar_adapter.models import UserAccount, Asset
-from stellar_adapter.serializers import PurchaseSerializer, WithdrawSerializer, DepositSerializer, \
-    SendSerializer, UserAccountSerializer, AddAssetSerializer
-from stellar_adapter.permissions import AdapterPurchasePermission, AdapterWithdrawPermission, \
-    AdapterDepositPermission, AdapterSendPermission, AdapterPermission
+from . import settings
+from .exceptions import PlatformRequestFailedError, NotImplementedAPIError
+from .models import UserAccount, Asset
+from .permissions import AdapterPurchasePermission, AdapterWithdrawPermission, \
+    AdapterDepositPermission, AdapterSendPermission
 
 from logging import getLogger
 
-from stellar_adapter.stellar import create_transaction, get_balance, create_qr_code_url, from_cents, trust_issuer, \
+from .stellar import create_transaction, get_balance, create_qr_code_url, from_cents, trust_issuer, \
     get_issuer_address
-from stellar_adapter.throttling import NoThrottling
+from .throttling import NoThrottling
+
+from .serializers import TransactionSerializer, UserAccountSerializer, AddAssetSerializer
 
 logger = getLogger('django')
 
@@ -94,7 +94,7 @@ def adapter_root(request, format=None):
 class PurchaseView(GenericAPIView):
     allowed_methods = ('POST',)
     throttle_classes = (NoThrottling,)
-    serializer_class = PurchaseSerializer
+    serializer_class = TransactionSerializer
     permission_classes = (AdapterPurchasePermission,)
 
     def post(self, request, *args, **kwargs):
@@ -107,7 +107,7 @@ class PurchaseView(GenericAPIView):
 class WithdrawView(GenericAPIView):
     allowed_methods = ('POST',)
     throttle_classes = (NoThrottling,)
-    serializer_class = WithdrawSerializer
+    serializer_class = TransactionSerializer
     permission_classes = (AdapterWithdrawPermission,)
 
     def post(self, request, *args, **kwargs):
@@ -120,7 +120,7 @@ class WithdrawView(GenericAPIView):
 class DepositView(GenericAPIView):
     allowed_methods = ('POST',)
     throttle_classes = (NoThrottling,)
-    serializer_class = DepositSerializer
+    serializer_class = TransactionSerializer
     permission_classes = (AdapterDepositPermission,)
 
     def post(self, request, *args, **kwargs):
@@ -133,12 +133,12 @@ class DepositView(GenericAPIView):
 class SendView(GenericAPIView):
     allowed_methods = ('POST',)
     throttle_classes = (NoThrottling,)
-    serializer_class = SendSerializer
+    serializer_class = TransactionSerializer
     permission_classes = (AdapterSendPermission,)
 
     def post(self, request, *args, **kwargs):
         tx_code = request.data.get('tx_code')
-        counterparty = request.data.get('counterparty')
+        to_user = request.data.get('to_user')
         amount = request.data.get('amount')
         currency = request.data.get('currency')
         issuer = request.data.get('issuer')
@@ -147,16 +147,16 @@ class SendView(GenericAPIView):
         print(currency)
 
         try:
-            logger.info('To: ' + counterparty)
+            logger.info('To: ' + to_user)
             logger.info('Amount: ' + str(amount))
             logger.info('Currency: ' + currency)
 
             if currency == 'XLM':
-                create_transaction(counterparty, from_cents(amount, 7))
+                create_transaction(to_user, from_cents(amount, 7))
 
             else:
                 asset = Asset.objects.get(code=currency, issuer=issuer)
-                create_transaction(counterparty, from_cents(amount, 7), currency, asset.issuer)
+                create_transaction(to_user, from_cents(amount, 7), currency, asset.issuer)
 
             update_platform_transaction(tx_code, 'Confirmed')
         except Exception as exc:
@@ -253,8 +253,8 @@ class StellarFederationView(APIView):
             raise NotImplementedAPIError()
 
 
-@shared_task(bind=True, name='adapter.update_platform_tx.task', max_retries=24, default_retry_delay=60 * 60)
-def update_platform_transaction(self, tx_code, status):
+@shared_task(bind=True, name='adapter.update_rehive_tx.task', max_retries=24, default_retry_delay=60 * 60)
+def update_rehive_transaction(self, tx_code, status):
     logger.info('Make transaction update request.')
 
     # Update URL
