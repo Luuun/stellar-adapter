@@ -9,8 +9,6 @@ from .tasks import create_rehive_receive, confirm_rehive_transaction
 
 logger = getLogger('django')
 
-STELLAR_WALLET_DOMAIN = 'luuun.com'
-
 
 class MoneyField(models.DecimalField):
     """Decimal Field with hardcoded precision of 28 and a scale of 18."""
@@ -77,10 +75,15 @@ class SendTransaction(models.Model):
     data = JSONField(null=True, blank=True, default={})
     metadata = JSONField(null=True, blank=True, default={})
 
+    def execute(self):
+        account = AdminAccount.objects.get(default=True)
+        account.process_send(self)
+
 
 # HotWallet/ Operational Accounts for sending or receiving
 class AdminAccount(models.Model):
     name = models.CharField(max_length=100, null=True, blank=True)
+    secret = models.CharField(max_length=200, null=True, blank=True)  # Crypto seed or private key
     account_id = models.CharField(max_length=200, null=True, blank=True)  # Crypto Address
     network = models.CharField(max_length=100, null=True, blank=True)  # e.g. 'testnet'
     default = models.BooleanField(default=False)
@@ -89,7 +92,11 @@ class AdminAccount(models.Model):
     # Alternative to webhooks.
     def process_receive_transactions(self):
         interface = Interface(account=self)
-        interface.process_new_transactions()
+        interface.process_receives()
+
+    def process_send(self, tx):
+        interface = Interface(account=self)
+        interface.process_send(tx)
 
 
 # Crypto Asset.

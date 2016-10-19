@@ -17,26 +17,7 @@ def authenticate(required_secret, request, view):
     return True
 
 
-class AdapterPurchasePermission(permissions.BasePermission):
+class AdapterGlobalPermission(permissions.BasePermission):
     def has_permission(self, request, view):
-        return authenticate(getattr(settings, 'STELLAR_PURCHASE_SECRET_KEY'), request, view)
+        return authenticate(getattr(settings, 'ADAPTER_TOKEN'), request, view)
 
-
-class AdapterWithdrawPermission(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return authenticate(getattr(settings, 'STELLAR_WITHDRAW_SECRET_KEY'), request, view)
-
-
-class AdapterDepositPermission(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return authenticate(getattr(settings, 'STELLAR_DEPOSIT_SECRET_KEY'), request, view)
-
-
-class AdapterSendPermission(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return authenticate(getattr(settings, 'STELLAR_SEND_SECRET_KEY'), request, view)
-
-
-class AdapterPermission(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return authenticate(getattr(settings, 'STELLAR_ADAPTER_SECRET_KEY'), request, view)
